@@ -1,8 +1,6 @@
 
-import React, { useState, useEffect, useCallback, useMemo  } from 'react';
+import React, { useState, useEffect, useCallback  } from 'react';
 import { HubConnectionBuilder } from '@microsoft/signalr';
-import Button from '@mui/material/Button';
-import api from '../../services/api';
 import {Map} from 'pigeon-maps';
 import Marker from 'pigeon-marker';
 
@@ -11,32 +9,13 @@ const getProvider = (x, y, z) => `https://cartodb-basemaps-a.global.ssl.fastly.n
 
 const Monitoramento = () => {
 
-    const mapConfig = {
+
+    const [mapConfig, setMapConfig] = useState({
         center: [-19.8272144, -43.1629986],
         zoom: 16
-    };
-
-    
-    const data = {
-        name: '3',
-        values: [-19.8245789, -43.1620343],
-    }
-
+    });
     const [ connection, setConnection ] = useState(null);
-    const [locations, setLocations] = useState([
-        {
-            name: '0',
-            values: [-19.8272083, -43.1629873],
-        },
-        {
-            name: '1',
-            values: [-19.8267341, -43.1629907],
-        },
-        {
-            name: '2',
-            values: [-19.8267341, -43.1629907],
-        },
-]);
+    const [locations, setLocations] = useState([]);
 
     useEffect(() => {
         const newConnection = new HubConnectionBuilder()
@@ -48,28 +27,36 @@ const Monitoramento = () => {
     }, []);
 
     useEffect(() => {
-        if (connection) {
+        if (connection && connection?._connectionState !== "Connected") {
             connection.start()
                 .then(result => {
                     console.log('Connected!');
                     
                     connection.on('receiveMessage', message => {
+                        const latitude = Number(message.latitude)
+                        const longitude = Number(message.longitude)
+
+                        if(locations.length === 0) {
+                            setMapConfig((mapConfig) => {
+                                mapConfig.center = [latitude, longitude]
+                                return Object.assign({}, mapConfig);
+                            })
+                        }
                         setLocations((locations) => {
-                            return [...locations, message]
+                            return [...locations, {
+                                values : [latitude, longitude],
+                                name: locations.length + 1
+                            }]
                         })
+
+                        console.log([latitude, longitude])
                     });
                 })
                 .catch(e => console.log('Connection failed: ', e));
         }
-    }, [connection]);
+    }, [connection, locations]);
 
 
-    const gerarNotificacao = () => {
-        setLocations((locations) => {
-            debugger
-            return [...locations, data]
-        })
-    }
     
     const PigeonMarkers = useCallback(() => {
         return (
@@ -83,13 +70,10 @@ const Monitoramento = () => {
                 )
             )
         )
-    },[locations]);
+    },[locations, mapConfig]);
 
     return (
     <>
-        <div>
-            <Button onClick={gerarNotificacao}> Gerar notificacao</Button>
-        </div>
         <div className="map">
             <Map
                 width={window.innerWidth}
